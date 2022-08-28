@@ -1,0 +1,5 @@
+Different parts of this project are licensed under different licenses.
+This file declares the license of each file in the project.
+./docs      GNU Free Documentation License
+./design    Creative Commons Attribution-ShareAlike
+./firmware  GNU General Public License
