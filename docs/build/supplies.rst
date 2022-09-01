@@ -1,7 +1,7 @@
-Materials
-=========
+Supplies
+========
 
-Materials can be separated into two categories: Consumable (plastic, motors, screws) and
+Supplies can be separated into two categories: Consumable (plastic, motors, screws) and
 non-consumable (battery charger, drill).
 
 I also provide recommendations. None of the recommended supplies sponsor, endorse, or are
@@ -15,10 +15,7 @@ related to this project.
         - PETG is preferred for good heat resistance.
         - Light colors are preferred for lower heat absorption.
 
-- Arduino board with at least 6 PWM pins.
-
-    - Arduino Uno, Arduino Mega, Arduino Nano all work.
-      This guide uses Arduino Uno.
+- Arduino Uno.
 
 - 2 brushless motors (3 phase AC motors).
 - 2 brushless motor controllers.
