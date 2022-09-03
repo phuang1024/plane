@@ -12,8 +12,9 @@ related to this project.
     - Height, width, and depth at least 200 mm.
     - TODO kg of filament.
 
-        - PETG is preferred for good heat resistance.
-        - Light colors are preferred for lower heat absorption.
+- PETG is preferred for good heat resistance.
+
+    - Light colors are preferred for lower heat absorption.
 
 - Arduino Uno.
 
