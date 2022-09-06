@@ -1,4 +1,11 @@
-.PHONY: firmware
+.PHONY: help plane rc
 
-firmware:
-	arduino --upload firmware.ino
+help:
+	@echo "make plane: Build plane firmware."
+	@echo "make rc: Build remote control firmware."
+
+plane:
+	arduino --upload plane.ino
+
+rc:
+	arduino --upload rc.ino
