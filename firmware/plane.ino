@@ -76,17 +76,12 @@ void setup() {
 
 
 void loop() {
-    uint8_t buf[12];
-    uint8_t buflen = sizeof(buf);
-    if (_radio.recv(buf, &buflen)) // Non-blocking
-    {
-      int i;
-      // Message with a good checksum received, dump it.
-      //Serial.print("Message: ");
-      //Serial.println((char*)buf);         
-      set_motor(2, 1000);
-      delay(200);
-      set_motor(2, 0);
-      delay(200);
+    /*
+    uint8_t message[1];
+    uint8_t len = sizeof(buf);
+    if (_radio.recv(message, &len)) {
+        int ailerons = message[0] - 128;
+        int ail_r = map(ailerons, 0, 128, _motor_limits[2][2], _motor_limits[2][1]);
     }
+    */
 }
