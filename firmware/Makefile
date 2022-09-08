@@ -5,7 +5,9 @@ help:
 	@echo "make rc: Build remote control firmware."
 
 plane:
+	cd plane; \
 	arduino --upload plane.ino
 
 rc:
+	cd rc; \
 	arduino --upload rc.ino
