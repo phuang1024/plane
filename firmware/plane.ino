@@ -13,10 +13,10 @@ constexpr int _motor_pins[6] = {3, 4, 5, 6, 7, 8};
 constexpr int _motor_limits[6][3] = {
     {0, 1000},
     {0, 1000},
-    {600, 400},
-    {400, -400},
-    {500, 400},
-    {500, 400},
+    {600, 500},
+    {400, -500},
+    {500, 500},
+    {500, 500},
 };
 
 
@@ -78,12 +78,13 @@ void setup() {
 
 
 void loop() {
-    /*
     uint8_t message[1];
-    uint8_t len = sizeof(buf);
+    uint8_t len = sizeof(message);
     if (_radio.recv(message, &len)) {
         int ailerons = message[0] - 128;
-        int ail_r = map(ailerons, 0, 128, _motor_limits[2][2], _motor_limits[2][1]);
+        int ail_r = map(ailerons, -128, 127, 1000, -1000);
+        int ail_l = map(ailerons, -128, 127, -1000, 1000);
+        set_motor(2, ail_r);
+        set_motor(3, ail_l);
     }
-    */
 }
