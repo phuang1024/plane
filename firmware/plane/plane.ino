@@ -6,7 +6,7 @@ using ull = unsigned long long;
 constexpr int PULSE_MIN = 700;
 constexpr int PULSE_MAX = 2300;
 
-RH_ASK _radio;
+RH_ASK _radio(2000);
 
 // motors, right_aileron, left_aileron, elevators
 ServoTimer2 _motors[6];
@@ -79,20 +79,18 @@ void setup() {
         uint8_t message[3];
         uint8_t len = sizeof(message);
         if (_radio.recv(message, &len)) {
-            int ailerons = message[0] - 128;
+            int ailerons = message[1] - 128;
             int ail_r = map(ailerons, -128, 127, 1000, -1000);
             int ail_l = map(ailerons, -128, 127, -1000, 1000);
             set_motor(1, ail_r);
             set_motor(2, ail_l);
 
-            int elevator = message[1] - 128;
-            int elev_ctrl = map(elevator, -128, 127, -1000, 1000);
+            int elevator = message[0] - 128;
+            int elev_ctrl = map(elevator, -128, 127, 1000, -1000);
             set_motor(3, elev_ctrl);
 
             bool motors_on = message[2];
-            Serial.println(motors_on);
-            Serial.println(message[2]);
-            set_motor(0, motors_on ? 150 : 0);
+            set_motor(0, motors_on ? 600 : 0);
 
             last_recv = millis();
         }

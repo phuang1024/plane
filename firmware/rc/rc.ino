@@ -11,26 +11,42 @@ Message protocol:
 */
 
 #include <RH_ASK.h>
+#include <RotaryEncoder.h>
 
-RH_ASK _radio;
+using ull = unsigned long long;
+
+RH_ASK _radio(2000);
+RotaryEncoder rotary(4, 5, RotaryEncoder::LatchMode::TWO03);
 
 void setup() {
     Serial.begin(9600);
     if (!_radio.init())
          Serial.println("radio init failed");
+
+    pinMode(6, OUTPUT);  // LED
+
+    analogWrite(6, 5);
+
+    // Loop
+    ull last_send = 0;
+    while (true) {
+        delay(50);
+
+        last_send = millis();
+
+        int x = analogRead(0);
+        int y = analogRead(1);
+        int button = analogRead(2) == 0;
+
+        unsigned char msg[3];
+        msg[0] = map(x, 0, 1023, 0, 255);
+        msg[1] = map(y, 0, 1023, 0, 255);
+        msg[2] = button;
+        _radio.send((uint8_t*)msg, sizeof(msg));
+        _radio.waitPacketSent();
+    }
 }
 
+
 void loop() {
-    delay(50);
-
-    int x = analogRead(0);
-    int y = analogRead(1);
-    bool button = analogRead(2) == 0;
-
-    unsigned char msg[3];
-    msg[0] = map(x, 0, 1023, 0, 255);
-    msg[1] = map(y, 0, 1023, 0, 255);
-    msg[2] = button;
-    _radio.send((uint8_t*)msg, sizeof(msg));
-    _radio.waitPacketSent();
 }
