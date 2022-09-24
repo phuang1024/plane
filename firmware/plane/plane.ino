@@ -1,108 +1,196 @@
-#include <RH_ASK.h>
-#include <ServoTimer2.h>
+#include <Wire.h>
 
-using ull = unsigned long long;
+const int I2C_IMU = 0x68;
+const int I2C_BARO = 0x77;
 
-constexpr int PULSE_MIN = 700;
-constexpr int PULSE_MAX = 2300;
 
-RH_ASK _radio(2000);
+uint16_t read_u16() {
+    uint16_t x = 0;
+    for (int i = 0; i < 2; i++) {
+        x = (x << 8) | Wire.read();
+    }
+    return x;
+}
 
-// motors, right_aileron, left_aileron, elevators
-ServoTimer2 _motors[6];
-constexpr int _motor_pins[6] = {3, 4, 5, 6};
-// standard (0, 1000), range from std to min/max (0, 1000)
-constexpr int _motor_limits[6][3] = {
-    {0, 1000},
-    {600, 500},
-    {400, -500},
-    {650, 250},
+uint32_t read_u24() {
+    uint32_t x = 0;
+    for (int i = 0; i < 3; i++) {
+        x = (x << 8) | Wire.read();
+    }
+    return x;
+}
+
+
+struct IMURead {
+    int16_t ax, ay, az;  // Accelerometer
+    int16_t gx, gy, gz;  // Gyroscope
+};
+
+class IMU {
+public:
+    void init() {
+        Wire.beginTransmission(I2C_IMU);
+        Wire.write(0x6B);
+        Wire.write(0);
+        Wire.endTransmission(true);
+    }
+
+    IMURead read() {
+        // Request data
+        Wire.beginTransmission(I2C_IMU);
+        Wire.write(0x3B);
+        Wire.endTransmission(false);
+        Wire.requestFrom(I2C_IMU, 14, true);
+    
+        IMURead res;
+        res.ax = read_u16();
+        res.ay = read_u16();
+        res.az = read_u16();
+        read_u16();  // temp
+        res.gx = read_u16();
+        res.gy = read_u16();
+        res.gz = read_u16();
+    
+        return res;
+    }
 };
 
 
+struct BaroRead {
+    // decicelcius (309 = 30.9C)
+    int16_t temp;
+    // pascal (N / m^2)
+    uint32_t pressure;
+};
+
 /**
- * @param value  -1000 to 1000 interpolating between min and max
+ * Followed https://www.sparkfun.com/tutorials/253
+ * Max read speed: 100/sec = 10ms/read (based on my estimate)
  */
-void set_motor(int motor, int value) {
-    int std = _motor_limits[motor][0];
-    int range = _motor_limits[motor][1];
-    int up = std + range;
-    int down = std - range;
-    int fac = map(value, -1000, 1000, down, up);
-    int pulse = map(fac, 0, 1000, PULSE_MIN, PULSE_MAX);
-    pulse = constrain(pulse, PULSE_MIN, PULSE_MAX);
+class Baro {
+public:
+    void init() {
+        ac1 = read16_addr(0xAA);
+        ac2 = read16_addr(0xAC);
+        ac3 = read16_addr(0xAE);
+        ac4 = read16_addr(0xB0);
+        ac5 = read16_addr(0xB2);
+        ac6 = read16_addr(0xB4);
+        b1 = read16_addr(0xB6);
+        b2 = read16_addr(0xB8);
+        mb = read16_addr(0xBA);
+        mc = read16_addr(0xBC);
+        md = read16_addr(0xBE);
+    }
 
-    _motors[motor].write(pulse);
-}
+    BaroRead read() {
+        BaroRead res;
+        res.temp = read_temp();
+        res.pressure = read_pressure();
+        return res;
+    }
+
+    int16_t read_temp() {
+        // Request temp reading.
+        Wire.beginTransmission(I2C_BARO);
+        Wire.write(0xF4);
+        Wire.write(0x2E);
+        Wire.endTransmission();
+        delay(5);
+        int16_t raw = read16_addr(0xF6);
+
+        // Convert
+        int32_t x1 = (((int32_t)raw - (int32_t)ac6) * (int32_t)ac5) >> 15,
+                x2 = ((long)mc << 11) / (x1 + md);
+        b5 = x1 + x2;
+        int16_t temp = (b5 + 8) >> 4;
+
+        return temp;
+    }
+
+    uint32_t read_pressure() {
+        // Request pressure reading
+        Wire.beginTransmission(I2C_BARO);
+        Wire.write(0xF4);
+        Wire.write(0x34 + (oversamp << 6));
+        Wire.endTransmission();
+        delay(2 + (3 << oversamp));
+        uint32_t raw = read24_addr(0xF6) >> (8 - oversamp);
+
+        // Convert
+        // TODO bug i think
+        int32_t x1, x2, x3, b3, b6, p;
+        uint32_t b4, b7;
+
+        b6 = b5 - 4000;
+
+        x1 = (b2 * (b6*b6) >> 12) >> 11;
+        x2 = (ac2 * b6) >> 11;
+        x3 = x1 + x2;
+        b3 = ((((int32_t)ac1 * 4 + x3) << oversamp) + 2) >> 2;
+
+        x1 = (ac3 * b6) >> 13;
+        x2 = (b1 * ((b6*b6) >> 12)) >> 16;
+        x3 = (x1 + x2 + 2) >> 2;
+        b4 = (ac4 * (uint32_t)(x3 + 32768)) >> 15;
+
+        b7 = (uint32_t)(raw - b3) * (50000 >> oversamp);
+        if (b7 < 0x80000000)
+            p = (b7 << 1) / b4;
+        else
+            p = (b7 / b4) << 1;
+
+        x1 = (p >> 8) * (p >> 8);
+        x1 = (x1 * 3038) >> 16;
+        x2 = (-7357 * p) >> 16;
+        p += (x1 + x2 + 3791) >> 4;
+
+        return p;
+    }
+
+private:
+    // Pressure oversampling (0 to 3 incl).
+    const uint8_t oversamp = 0;
+
+    // Calibration constants
+    int16_t ac1, ac2, ac3, ac4, ac5, ac6, b1, b2, mb, mc, md;
+    // This is set by temp and used by baro
+    int32_t b5;
+
+    void request_addr(int addr, int num_bytes) {
+        Wire.beginTransmission(I2C_BARO);
+        Wire.write(addr);
+        Wire.endTransmission();
+        Wire.requestFrom(I2C_BARO, num_bytes);
+    }
+
+    uint16_t read16_addr(int addr) {
+        request_addr(addr, 2);
+        return read_u16();
+    }
+
+    uint32_t read24_addr(int addr) {
+        request_addr(addr, 3);
+        return read_u24();
+    }
+};
 
 
-void test_servos() {
-    for (int i = 1; i < 4; i++)
-        set_motor(i, -1000);
-    delay(1000);
-    for (int i = 1; i < 4; i++)
-        set_motor(i, 1000);
-    delay(1000);
-    for (int i = 1; i < 4; i++)
-        set_motor(i, 0);
-    delay(1000);
-}
+IMU imu_sensor;
+Baro baro_sensor;
 
-void test_motors() {
-    set_motor(0, 150);
-    delay(100);
-    set_motor(0, 0);
-    delay(1000);
-}
 
 void setup() {
     Serial.begin(9600);
+    Wire.begin();
 
-    if (!_radio.init())
-        Serial.println("radio init failed");
-
-    for (int i = 0; i < 4; i++) {
-        _motors[i].attach(_motor_pins[i]);
-        set_motor(i, 0);
-    }
-
-    delay(8000);
-    test_servos();
-    test_motors();
-
-    //set_motor(0, 150);
-
-    // Loop
-    ull last_recv = millis();
-    while (true) {
-        // Process radio message. See rc.ino for protocol.
-        uint8_t message[3];
-        uint8_t len = sizeof(message);
-        if (_radio.recv(message, &len)) {
-            int ailerons = message[1] - 128;
-            int ail_r = map(ailerons, -128, 127, 1000, -1000);
-            int ail_l = map(ailerons, -128, 127, -1000, 1000);
-            set_motor(1, ail_r);
-            set_motor(2, ail_l);
-
-            int elevator = message[0] - 128;
-            int elev_ctrl = map(elevator, -128, 127, 1000, -1000);
-            set_motor(3, elev_ctrl);
-
-            bool motors_on = message[2];
-            set_motor(0, motors_on ? 600 : 0);
-
-            last_recv = millis();
-        }
-
-        // Turn off motors if no message received for 1 second
-        ull now = millis();
-        if (now - last_recv > 1000) {
-            set_motor(0, 0);
-        }
-    }
+    imu_sensor.init();
+    baro_sensor.init();
 }
 
 void loop() {
-    // Loop is in setup().
+    IMURead imu = imu_sensor.read();
+    BaroRead baro = baro_sensor.read();
+    Serial.println(baro.pressure);
+    delay(1000);
 }
