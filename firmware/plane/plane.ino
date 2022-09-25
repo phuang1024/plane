@@ -5,6 +5,11 @@ const int I2C_IMU = 0x68;
 const int I2C_BARO = 0x77;
 
 
+float mapf(float v, float old_min, float old_max, float new_min, float new_max) {
+    return (v-old_min) / (old_max-old_min) * (new_max-new_min) + new_min;
+}
+
+
 uint16_t read_u16() {
     uint16_t x = 0;
     for (int i = 0; i < 2; i++) {
@@ -182,10 +187,59 @@ private:
 };
 
 
+class PIDControl {
+public:
+    PIDControl(float kp, float ki, float kd, float target) {
+        this->kp = kp;
+        this->ki = ki;
+        this->kd = kd;
+        this->target = target;
+        integral = 0;
+        last_time = micros();
+        last_error = 0;
+    }
+
+    /**
+     * Returns what to set motor/controller to.
+     */
+    float control(float value) {
+        const uint32_t now = micros();
+        float error = value - target;
+        float deriv = (error - last_error) / (now - last_time) * 1e6;
+        integral += error;
+
+        Serial.print(error); Serial.print(' ');
+        Serial.print(deriv); Serial.print(' ');
+        Serial.print(integral); Serial.print(' ');
+        Serial.println();
+
+        last_error = error;
+        last_time = micros();
+
+        float ctrl = (
+            kp * error
+          + ki * integral
+          + kd * deriv
+        );
+        return ctrl;
+    }
+
+private:
+    float kp, ki, kd;
+    float target;
+    float integral;
+
+    float last_error;
+    // us. Rollover doesn't matter bc we are controlling often.
+    uint32_t last_time;
+};
+
+
 IMU imu_sensor;
 Baro baro_sensor;
 
 Servo servo;
+PIDControl pidctrl(1, 0.1, 0.2, 0);
 
 
 void setup() {
@@ -196,12 +250,17 @@ void setup() {
     baro_sensor.init();
 
     servo.attach(2);
-}
 
-void loop() {
-    IMURead imu = imu_sensor.read();
-    BaroRead baro = baro_sensor.read();
-    Serial.println(imu.ax);
-    servo.write(map(imu.ax, -16384, 16383, 0, 180));
-    delay(10);
+    while (true) {
+        IMURead imu = imu_sensor.read();
+        //BaroRead baro = baro_sensor.read();
+
+        float value = (float)imu.ax / 65536 * 2*PI;
+        float ctrl = pidctrl.control(value);
+        int angle = constrain(mapf(ctrl, -2, 2, 0, 180), 0, 180);
+        Serial.println(angle);
+        servo.write(angle);
+
+        delay(10);
+    }
 }
