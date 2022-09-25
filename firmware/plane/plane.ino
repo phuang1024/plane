@@ -1,3 +1,4 @@
+#include <Servo.h>
 #include <Wire.h>
 
 const int I2C_IMU = 0x68;
@@ -115,7 +116,12 @@ public:
         Wire.write(0x34 + (oversamp << 6));
         Wire.endTransmission();
         delay(2 + (3 << oversamp));
-        uint32_t raw = read24_addr(0xF6) >> (8 - oversamp);
+        //uint32_t raw = read24_addr(0xF6) >> (8 - oversamp);
+        Wire.beginTransmission(I2C_BARO);
+        Wire.write(0xF6);
+        Wire.endTransmission();
+        Wire.requestFrom(I2C_BARO, 3);
+        uint32_t raw = (((uint32_t)Wire.read() << 16) | ((uint32_t)Wire.read() << 8) | (uint32_t)Wire.read()) >> (8 - oversamp);
 
         // Convert
         // TODO bug i think
@@ -150,7 +156,7 @@ public:
 
 private:
     // Pressure oversampling (0 to 3 incl).
-    const uint8_t oversamp = 0;
+    const uint8_t oversamp = 2;
 
     // Calibration constants
     int16_t ac1, ac2, ac3, ac4, ac5, ac6, b1, b2, mb, mc, md;
@@ -179,6 +185,8 @@ private:
 IMU imu_sensor;
 Baro baro_sensor;
 
+Servo servo;
+
 
 void setup() {
     Serial.begin(9600);
@@ -186,11 +194,14 @@ void setup() {
 
     imu_sensor.init();
     baro_sensor.init();
+
+    servo.attach(2);
 }
 
 void loop() {
     IMURead imu = imu_sensor.read();
     BaroRead baro = baro_sensor.read();
-    Serial.println(baro.pressure);
-    delay(1000);
+    Serial.println(imu.ax);
+    servo.write(map(imu.ax, -16384, 16383, 0, 180));
+    delay(10);
 }
