@@ -193,7 +193,7 @@ private:
 
 class PIDControl {
 public:
-    PIDControl(float kp, float ki, float kd, float target, float integral_clamp = 4) {
+    PIDControl(float kp, float ki, float kd, float target, float integral_clamp = 10) {
         this->kp = kp;
         this->ki = ki;
         this->kd = kd;
@@ -278,31 +278,31 @@ private:
 };
 
 
-IMU imu_sensor;
-Baro baro_sensor;
-
-Servo servo;
-//Servo motor;
-PIDControl pidctrl(1.5, 0.15, 0.005, 0);
-
-LEDBlinker ledblink(13, 50, 950);
+/**
+ * Waits until IMU is not fluctuating (plane is set on floor) and gets rot position.
+ */
+void get_rot_origin(IMU& imu_sensor, int* rot_origin) {
+}
 
 
 void setup() {
     Serial.begin(9600);
     Wire.begin();
 
+    IMU imu_sensor;
+    Baro baro_sensor;
     imu_sensor.init();
     baro_sensor.init();
 
-    servo.attach(2);
-    //motor.attach(3);
+    // Find (0, 0, 0) of rotational position.
+    int rot_origin[3];
+    get_rot_origin(rot_origin);
 
-    /*
-    motor.write(30);
-    delay(8000);
-    motor.write(60);
-    */
+    Servo servo;
+    servo.attach(2);
+    PIDControl pidctrl(1.5, 0.15, 0.005, 0);
+    
+    LEDBlinker ledblink(13, 50, 950);
 
     while (true) {
         IMURead imu = imu_sensor.read();
@@ -318,4 +318,8 @@ void setup() {
 
         delay(20);
     }
+}
+
+
+void loop() {
 }
