@@ -9,6 +9,10 @@ float mapf(float v, float old_min, float old_max, float new_min, float new_max) 
     return (v-old_min) / (old_max-old_min) * (new_max-new_min) + new_min;
 }
 
+float constrainf(float v, float min_v, float max_v) {
+    return min(max(v, min_v), max_v);
+}
+
 
 uint16_t read_u16() {
     uint16_t x = 0;
@@ -189,11 +193,12 @@ private:
 
 class PIDControl {
 public:
-    PIDControl(float kp, float ki, float kd, float target) {
+    PIDControl(float kp, float ki, float kd, float target, float integral_clamp = 4) {
         this->kp = kp;
         this->ki = ki;
         this->kd = kd;
         this->target = target;
+        this->integral_clamp = integral_clamp;
         integral = 0;
         last_time = micros();
         last_error = 0;
@@ -207,6 +212,7 @@ public:
         float error = value - target;
         float deriv = (error - last_error) / (now - last_time) * 1e6;
         integral += error;
+        integral = constrainf(integral, -integral_clamp, integral_clamp);
 
         Serial.print(error); Serial.print(' ');
         Serial.print(deriv); Serial.print(' ');
@@ -227,6 +233,7 @@ public:
 private:
     float kp, ki, kd;
     float target;
+    float integral_clamp;
     float integral;
 
     float last_error;
@@ -235,11 +242,50 @@ private:
 };
 
 
+/**
+ * Manages all the timing for you. Just call this.update() periodically.
+ */
+class LEDBlinker {
+public:
+    /**
+     * duration in ms.
+     */
+    LEDBlinker(int pin, int on_dur, int off_dur) {
+        this->pin = pin;
+        this->on_dur = on_dur;
+        this->off_dur = off_dur;
+        state = false;
+        last_time = millis();
+
+        pinMode(pin, OUTPUT);
+    }
+
+    void update() {
+        int now = millis();
+        int wait_time = (state ? on_dur : off_dur);
+        if (now - last_time > wait_time) {
+            state = !state;
+            digitalWrite(pin, state);
+            last_time = now;
+        }
+    }
+
+private:
+    int pin;
+    int on_dur, off_dur;
+    bool state;
+    int last_time;
+};
+
+
 IMU imu_sensor;
 Baro baro_sensor;
 
 Servo servo;
-PIDControl pidctrl(1, 0.1, 0.2, 0);
+//Servo motor;
+PIDControl pidctrl(1.5, 0.15, 0.005, 0);
+
+LEDBlinker ledblink(13, 50, 950);
 
 
 void setup() {
@@ -250,6 +296,13 @@ void setup() {
     baro_sensor.init();
 
     servo.attach(2);
+    //motor.attach(3);
+
+    /*
+    motor.write(30);
+    delay(8000);
+    motor.write(60);
+    */
 
     while (true) {
         IMURead imu = imu_sensor.read();
@@ -257,10 +310,12 @@ void setup() {
 
         float value = (float)imu.ax / 65536 * 2*PI;
         float ctrl = pidctrl.control(value);
-        int angle = constrain(mapf(ctrl, -2, 2, 0, 180), 0, 180);
+        int angle = constrain(mapf(ctrl, -1, 1, 0, 180), 0, 180);
         Serial.println(angle);
         servo.write(angle);
 
-        delay(10);
+        ledblink.update();
+
+        delay(20);
     }
 }
