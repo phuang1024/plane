@@ -6,8 +6,10 @@
 
 
 struct IMURead {
-    int16_t ax, ay, az;  // Accelerometer
-    int16_t gx, gy, gz;  // Gyroscope
+    // Abs rot pos, radians.
+    float ax, ay, az;
+    // Rot vel, radians/s.
+    float gx, gy, gz;
 };
 
 class IMU {
@@ -27,15 +29,20 @@ public:
         Wire.requestFrom(I2C_IMU, 14, true);
     
         IMURead res;
-        res.ax = read_u16();
-        res.ay = read_u16();
-        res.az = read_u16();
+        res.ax = to_radians(read_u16());
+        res.ay = to_radians(read_u16());
+        res.az = to_radians(read_u16());
         read_u16();  // temp
-        res.gx = read_u16();
-        res.gy = read_u16();
-        res.gz = read_u16();
+        res.gx = to_radians(read_u16());
+        res.gy = to_radians(read_u16());
+        res.gz = to_radians(read_u16());
     
         return res;
+    }
+
+private:
+    float to_radians(int16_t v) {
+        return v / 32768.0 * PI;
     }
 };
 
