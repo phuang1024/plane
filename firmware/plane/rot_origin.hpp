@@ -14,7 +14,7 @@
  */
 void get_rot_origin(IMU& imu_sensor, float* rot_origin) {
     // Blink rapidly to tell user.
-    LEDBlinker ledblink(13, 50, 250);
+    LEDBlinker ledblink(13, 50, 150);
     int time_start = millis();
     while (millis() - time_start < 8000) {
         ledblink.update();

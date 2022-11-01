@@ -2,6 +2,7 @@
 #include <ServoTimer2.h>
 #include <Wire.h>
 
+//#include "ctrlsurf.hpp"
 #include "pid.hpp"
 #include "rot_origin.hpp"
 #include "sensors.hpp"
@@ -9,8 +10,26 @@
 
 const bool CALIBRATE_MODE = false;
 
-ServoTimer2 motor;
-ServoTimer2 servo;
+ServoTimer2 _engine;
+// flap, ailr
+const int _scnt = 2;
+ServoTimer2 _servos[_scnt];
+int _servo_pin[_scnt] = {4, 7};
+// pulse widths
+int _servo_mid[_scnt] = {1400, 1190};
+int _servo_range[_scnt] = {400, 370};
+
+
+/**
+ * @param servo_num   See comment near _servos
+ * @param value  -1000 to 1000, 0 = neutral position.
+ */
+void write_servo(int servo_num, int value) {
+    int mid = _servo_mid[servo_num];
+    int range = _servo_range[servo_num];
+    int pulse_width = map(value, -1000, 1000, mid-range, mid+range);
+    _servos[servo_num].write(pulse_width);
+}
 
 
 /**
@@ -21,9 +40,9 @@ void calibrate() {
     Serial.println("Calibrate mode.");
 
     // Calibrate motor (high then low).
-    motor.write(2300);
+    _engine.write(2300);
     delay(7000);
-    motor.write(700);
+    _engine.write(700);
 }
 
 
@@ -35,14 +54,27 @@ void mainloop() {
 
     // Find (0, 0, 0) of rotational position.
     // The delay here also makes sure ESC is initialized.
+    /*
     float rot_origin[3];
     get_rot_origin(imu_sensor, rot_origin);
 
     PIDControl pidctrl(3, 0.2, 0.004, rot_origin[0]);
     LEDBlinker ledblink(13, 50, 2950);
+    */
 
-    motor.write(1000);  // TODO testing.
+    //motor.write(1000);  // TODO testing.
 
+    // TODO test
+    while (true) {
+        for (int pos = -1000; pos <= 1000; pos += 500) {
+            write_servo(0, pos);
+            write_servo(1, pos);
+            delay(500);
+        }
+    }
+
+    // TODO PID test
+    /*
     while (true) {
         IMURead imu = imu_sensor.read();
         //BaroRead baro = baro_sensor.read();
@@ -57,6 +89,7 @@ void mainloop() {
 
         delay(20);
     }
+    */
 }
 
 
@@ -64,9 +97,12 @@ void setup() {
     Serial.begin(9600);
     Wire.begin();
 
-    motor.attach(2);
-    motor.write(700);   // off
-    servo.attach(3);
+    _engine.attach(2);
+    _engine.write(700);   // off
+    for (int i = 0; i < _scnt; i++) {
+        _servos[i].attach(_servo_pin[i]);
+        write_servo(i, 0);
+    }
 
     if (CALIBRATE_MODE) {
         calibrate();
