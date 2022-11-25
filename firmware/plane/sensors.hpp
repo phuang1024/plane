@@ -40,6 +40,35 @@ public:
         return res;
     }
 
+    /**
+     * Data averaged over number of trials.
+     * Delays ms each time.
+     */
+    IMURead read_avg(int trials, int pause) {
+        IMURead res;
+        res.ax = res.ay = res.az = res.gx = res.gy = res.gz = 0;
+
+        for (int i = 0; i < trials; i++) {
+            IMURead curr = read();
+            res.ax += curr.ax;
+            res.ay += curr.ay;
+            res.az += curr.az;
+            res.gx += curr.gx;
+            res.gy += curr.gy;
+            res.gz += curr.gz;
+            delay(pause);
+        }
+
+        res.ax /= trials;
+        res.ay /= trials;
+        res.az /= trials;
+        res.gx /= trials;
+        res.gy /= trials;
+        res.gz /= trials;
+
+        return res;
+    }
+
 private:
     float to_radians(int16_t v) {
         return v / 32768.0 * PI;
@@ -170,4 +199,3 @@ private:
         return read_u24();
     }
 };
-

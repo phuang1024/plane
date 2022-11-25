@@ -57,11 +57,7 @@ void mainloop() {
     float rot_origin[3];
     get_rot_origin(imu_sensor, rot_origin);
 
-    LEDBlinker ledblink(13, 50, 2950);
-    PIDControl pid_roll(2, 0.15, 0.005, rot_origin[0]),
-               pid_pitch(2, 0.15, 0.005, rot_origin[1]);
-
-    //motor.write(1000);  // TODO testing.
+    //LEDBlinker ledblink(13, 50, 2950);
 
     // TODO test
     /*
@@ -73,27 +69,51 @@ void mainloop() {
     }
     */
 
-    // TODO PID test
+    // Glider mode: Wait until plane nose facing upwards (human
+    // action that activates it), start motor for 30 secs, then
+    // repeat.
+    write_servo(0, -600);  // Flaps
     while (true) {
-        IMURead imu = imu_sensor.read();
-        //BaroRead baro = baro_sensor.read();
+        while (true) {
+            IMURead imu = imu_sensor.read();
+            if (imu.ay > 1.7) {
+                break;
+            }
+        }
 
-        // PID roll
-        float value = (float)imu.ax;
-        float ctrl = pid_roll.control(value);
-        ctrl = constrainf(ctrl, -1, 1);
-        write_servo(1, 1000*ctrl);
-        write_servo(2, -1000*ctrl);
+        uint32_t time_start = millis();
+        PIDControl pid_roll(1, 0.2, 0.01, rot_origin[0]),
+                   pid_pitch(1, 0.2, 0.01, rot_origin[1]);
 
-        // PID pitch
-        value = (float)imu.ay;
-        ctrl = pid_pitch.control(value);
-        ctrl = constrainf(ctrl, -1, 1);
-        write_servo(3, -1000*ctrl);
+        // Motor on
+        _engine.write(1000);
+        delay(100);
+        _engine.write(0);
+        delay(1000);
+        _engine.write(1300);
 
-        ledblink.update();
+        while (millis() - time_start < 30000) {
+            IMURead imu = imu_sensor.read_avg(20, 2);
+    
+            // PID roll
+            float value = (float)imu.ax;
+            float ctrl = pid_roll.control(value);
+            ctrl = constrainf(ctrl, -1, 1);
+            write_servo(1, 1000*ctrl);
+            write_servo(2, -1000*ctrl);
+    
+            // PID pitch
+            value = (float)imu.ay;
+            ctrl = pid_pitch.control(value);
+            ctrl = constrainf(ctrl, -1, 1);
+            write_servo(3, -1000*ctrl);
+    
+            //ledblink.update();
+    
+            //delay(30);
+        }
 
-        delay(20);
+        _engine.write(0);
     }
 }
 

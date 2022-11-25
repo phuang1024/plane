@@ -26,11 +26,6 @@ public:
         integral += error;
         integral = constrainf(integral, -integral_clamp, integral_clamp);
 
-        Serial.print(error); Serial.print(' ');
-        Serial.print(deriv); Serial.print(' ');
-        Serial.print(integral); Serial.print(' ');
-        Serial.println();
-
         last_error = error;
         last_time = micros();
 
@@ -52,4 +47,3 @@ private:
     // us. Rollover doesn't matter bc we are controlling often.
     uint32_t last_time;
 };
-
